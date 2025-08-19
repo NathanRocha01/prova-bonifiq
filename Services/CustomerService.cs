@@ -4,25 +4,24 @@ using ProvaPub.Repository;
 
 namespace ProvaPub.Services
 {
-    public class CustomerService
+    public interface ICustomerService
     {
-        TestDbContext _ctx;
+        Task<PagedList<Customer>> ListCustomers(int page);
+        Task<bool> CanPurchase(int customerId, decimal purchaseValue, DateTime? nowUtc = null);
+    }
+    public class CustomerService : PagedReadService<Customer>, ICustomerService
+    {
+        public CustomerService(TestDbContext ctx) : base(ctx) { }
+        public Task<PagedList<Customer>> ListCustomers(int page)
+            => ListAsync(page, 10);
 
-        public CustomerService(TestDbContext ctx)
-        {
-            _ctx = ctx;
-        }
-
-        public CustomerList ListCustomers(int page)
-        {
-            return new CustomerList() { HasNext = false, TotalCount = 10, Customers = _ctx.Customers.ToList() };
-        }
-
-        public async Task<bool> CanPurchase(int customerId, decimal purchaseValue)
+        public async Task<bool> CanPurchase(int customerId, decimal purchaseValue, DateTime? nowUtc = null)
         {
             if (customerId <= 0) throw new ArgumentOutOfRangeException(nameof(customerId));
 
             if (purchaseValue <= 0) throw new ArgumentOutOfRangeException(nameof(purchaseValue));
+
+            var now = nowUtc ?? DateTime.UtcNow;
 
             //Business Rule: Non registered Customers cannot purchase
             var customer = await _ctx.Customers.FindAsync(customerId);
@@ -40,7 +39,7 @@ namespace ProvaPub.Services
                 return false;
 
             //Business Rule: A customer can purchases only during business hours and working days
-            if (DateTime.UtcNow.Hour < 8 || DateTime.UtcNow.Hour > 18 || DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday)
+            if (now.Hour < 8 || now.Hour > 18 || now.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
                 return false;
 
 

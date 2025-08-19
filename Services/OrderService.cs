@@ -1,44 +1,46 @@
-﻿using ProvaPub.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using ProvaPub.Models;
 using ProvaPub.Repository;
 
 namespace ProvaPub.Services
 {
-	public class OrderService
-	{
-        TestDbContext _ctx;
+    public interface IOrderService
+    {
+        Task<Order> PayOrder(string paymentMethod, decimal paymentValue, int customerId);
+    }
+    public class OrderService : IOrderService
+    {
+        private readonly TestDbContext _ctx;
+        private readonly IReadOnlyDictionary<string, IPaymentProcessor> _processors;
 
-        public OrderService(TestDbContext ctx)
+        public OrderService(TestDbContext ctx, IEnumerable<IPaymentProcessor> processors)
         {
             _ctx = ctx;
+            _processors = processors.ToDictionary(p => p.Method, p => p, StringComparer.OrdinalIgnoreCase);
         }
 
         public async Task<Order> PayOrder(string paymentMethod, decimal paymentValue, int customerId)
 		{
-			if (paymentMethod == "pix")
-			{
-				//Faz pagamento...
-			}
-			else if (paymentMethod == "creditcard")
-			{
-				//Faz pagamento...
-			}
-			else if (paymentMethod == "paypal")
-			{
-				//Faz pagamento...
-			}
 
-			return await InsertOrder(new Order() //Retorna o pedido para o controller
+            if (string.IsNullOrWhiteSpace(paymentMethod))
+                throw new ArgumentException("paymentMethod obrigatório.", nameof(paymentMethod));
+
+            if (!_processors.TryGetValue(paymentMethod.Trim(), out var processor))
+                throw new NotSupportedException($"Método de pagamento '{paymentMethod}' não suportado.");
+
+            await processor.ProcessAsync(paymentValue, customerId);
+
+            var order = new Order
             {
-                Value = paymentValue
-            });
+                CustomerId = customerId,
+                Value = paymentValue, 
+                OrderDate = DateTime.UtcNow     
+            };
 
+            _ctx.Orders.Add(order);
+            await _ctx.SaveChangesAsync();
 
-		}
-
-		public async Task<Order> InsertOrder(Order order)
-        {
-			//Insere pedido no banco de dados
-			return (await _ctx.Orders.AddAsync(order)).Entity;
+            return order;
         }
 	}
 }

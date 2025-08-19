@@ -12,16 +12,17 @@ namespace ProvaPub.Controllers
 	[Route("[controller]")]
 	public class Parte1Controller :  ControllerBase
 	{
-		private readonly RandomService _randomService;
+		private readonly IRandomService _randomService;
 
-		public Parte1Controller(RandomService randomService)
+		public Parte1Controller(IRandomService randomService)
 		{
 			_randomService = randomService;
 		}
 		[HttpGet]
-		public async Task<int> Index()
+		public async Task<IActionResult> Index()
 		{
-			return await _randomService.GetRandom();
-		}
+			var n = await _randomService.GetRandom();
+            return Ok(new { number = n });
+        }
 	}
 }
